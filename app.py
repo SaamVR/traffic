@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, session, send_file, jsonify
+
+from flask import Flask, render_template, request, redirect, url_for, session, send_file
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3, os, time
+import sqlite3, os
 from datetime import datetime
 
 app = Flask(__name__)
@@ -79,6 +80,14 @@ def update():
         for name in set(filter(None, members)):
             c.execute("INSERT INTO members (name) VALUES (?)", (name.strip(),))
         conn.commit()
+
+    with open("commenters.txt", "w") as cf:
+        for name in commenters:
+            cf.write(name.strip() + "\n")
+    with open("members.txt", "w") as mf:
+        for name in members:
+            mf.write(name.strip() + "\n")
+
     return redirect(url_for("admin"))
 
 @app.route("/reset_commenters", methods=["POST"])
@@ -89,6 +98,8 @@ def reset_commenters():
         c = conn.cursor()
         c.execute("DELETE FROM commenters")
         conn.commit()
+    with open("commenters.txt", "w") as f:
+        f.write("")
     return redirect(url_for("admin"))
 
 @app.route("/raw/<list_type>")
@@ -103,6 +114,12 @@ def raw_list(list_type):
             return "Invalid list type", 404
         names = sorted(set([row[0] for row in c.fetchall()]))
     return "\n".join(names), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+@app.route("/files/<filename>")
+def public_file(filename):
+    if filename not in ["commenters.txt", "members.txt"]:
+        return "File not allowed", 403
+    return send_file(filename, mimetype='text/plain')
 
 @app.route("/logout")
 def logout():
