@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+</head>
+<body>
+    <h2>Welcome, Admin</h2>
+    <form method="POST" action="/update">
+        <label>Streamlabs Token:</label><br>
+        <input type="text" name="token" value="{{ token }}"><br><br>
+        <label>Enable Tracking:</label>
+        <input type="checkbox" name="tracking" {% if tracking %}checked{% endif %}><br><br>
+
+        <h3>Commenters</h3>
+        <textarea name="commenters" rows="10" cols="40">{% for name, time in commenters %}{{ name }}
+{% endfor %}</textarea><br><br>
+
+        <h3>Members</h3>
+        <textarea name="members" rows="10" cols="40">{% for name, time in members %}{{ name }}
+{% endfor %}</textarea><br><br>
+
+        <button type="submit">Save Changes</button>
+    </form>
+
+    <form method="POST" action="/reset_commenters">
+        <button type="submit" style="color:red;">Reset Commenters</button>
+    </form>
+
+    <p><a href="/raw/commenters" target="_blank">View Commenters RAW</a></p>
+    <p><a href="/raw/members" target="_blank">View Members RAW</a></p>
+    <p><a href="/logout">Logout</a></p>
+</body>
+</html>
