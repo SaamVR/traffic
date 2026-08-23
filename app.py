@@ -1,13 +1,31 @@
 
-from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from flask import Flask, render_template, request, redirect, url_for, session, send_file, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-import sqlite3, os
+import sqlite3, os, io, json, zipfile, urllib.request
 from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "your-secret-key"
 
 DB_NAME = "tracker.db"
+VISUAL_BASELINE_ZIP_URL = "https://ecomcms-pr69-runner.onrender.com/visual-baselines.zip"
+_visual_baseline_zip = None
+_visual_baseline_manifest = None
+
+def _load_visual_baselines():
+    global _visual_baseline_zip, _visual_baseline_manifest
+    if _visual_baseline_zip is None or _visual_baseline_manifest is None:
+        req = urllib.request.Request(VISUAL_BASELINE_ZIP_URL, headers={"Cache-Control": "no-cache", "User-Agent": "EcomCMS-visual-review"})
+        with urllib.request.urlopen(req, timeout=30) as response:
+            archive_bytes = response.read()
+        archive = zipfile.ZipFile(io.BytesIO(archive_bytes))
+        manifest = json.loads(archive.read("visual-baselines-manifest.json").decode("utf-8"))
+        files = manifest.get("files") or []
+        if manifest.get("count") != 48 or len(files) != 48:
+            raise RuntimeError("Unexpected visual baseline manifest")
+        _visual_baseline_zip = archive
+        _visual_baseline_manifest = manifest
+    return _visual_baseline_zip, _visual_baseline_manifest
 
 def init_db():
     with sqlite3.connect(DB_NAME) as conn:
@@ -120,6 +138,28 @@ def public_file(filename):
     if filename not in ["commenters.txt", "members.txt"]:
         return "File not allowed", 403
     return send_file(filename, mimetype='text/plain')
+
+@app.route("/visual-review/<int:index>.png")
+def visual_review(index):
+    if index < 0 or index >= 48:
+        return "Not found", 404
+    try:
+        archive, manifest = _load_visual_baselines()
+        item = manifest["files"][index]
+        path = item.get("path", "")
+        if not path.startswith("tests/storefront-template-viewport.spec.ts-snapshots/") or not path.endswith(".png"):
+            return "Not found", 404
+        payload = archive.read(path)
+        if len(payload) != item.get("bytes"):
+            return "Invalid baseline", 502
+        return Response(payload, 200, {
+            "Content-Type": "image/png",
+            "Content-Length": str(len(payload)),
+            "Cache-Control": "no-store",
+            "X-Baseline-Name": path.rsplit("/", 1)[-1],
+        })
+    except Exception:
+        return "Visual review unavailable", 502
 
 @app.route("/logout")
 def logout():
